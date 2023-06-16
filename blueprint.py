@@ -226,8 +226,13 @@ def run_computation(ap_description: ActionProviderDescription,
         container = client.containers.run(
             image='computation_image:latest',
             volumes=volumes,
+            command=[ap_request.body["fastText_predictions"], 
+                     ap_request.body["langdetect_predictions"], 
+                     ap_request.body["primary_validation"]],
             detach=True
         )
+
+        # command=[ap_request.body["input_data"]],
         # wait for the container to finish
         container.wait()
 

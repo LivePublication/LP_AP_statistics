@@ -4,6 +4,7 @@ import numpy as np
 import pickle
 import json
 import pandas as pd
+import sys
 
 class langauge_stats:
     name = "",
@@ -42,8 +43,8 @@ def convert_fastText(line):
     return line
 
 def create_validation():
-  with open("input/fastText_predictions.txt", "r") as fastText:
-      with open("input/langdetect_predictions.txt", "r") as langdetect:
+  with open(sys.argv[1], "r") as fastText:
+      with open(sys.argv[2], "r") as langdetect:
           with open("output/fastText_validation.txt", "w") as fastText_validation:
             for line in fastText:
                 line = line.strip()
@@ -60,7 +61,7 @@ def create_validation():
               else:
                 langdetect_validation.write(Lang(lang_code).pt3 + "\n")
 
-          with open("input/validation.txt", "r") as validation:
+          with open(sys.argv[3], "r") as validation:
               with open("output/primary_validation.txt", "w") as primary_validation:
                   for line in validation:
                       primary_validation.write(Lang(line.strip()).pt3 + "\n")
