@@ -70,7 +70,7 @@ ActionProviderInput = add_lp_params(ActionProviderInput)
 
 # Configure Action Provider identity
 description = ActionProviderDescription(
-    globus_auth_scope="https://auth.globus.org/scopes/c45fe380-8e83-43da-a603-fffb0f4a782e/action_provider_operations",
+    globus_auth_scope="https://auth.globus.org/scopes/003238c5-78f9-4b6e-85a1-b71dd713b527/action_provider_operations",
     title="Statistics Generator",
     admin_contact="ael56@uclive.ac.nz",
     synchronous=True,
@@ -152,7 +152,9 @@ def my_action_run(action_request: ActionRequest, auth: AuthState) -> ActionCallb
 
     # Regester action request to parse out continuing requests
     caller_id = auth.effective_identity
-    full_request_id = f"{caller_id}:{action_request.request_id}"
+    # Modify full request id if multiple requests are able to be 
+    # made simultaniously from the same caller_id
+    full_request_id = f"{caller_id}"
     prev_request = request_database.get(full_request_id)
 
     if prev_request is not None:
@@ -212,6 +214,9 @@ def run_computation(ap_description: ActionProviderDescription,
     # ----------- docker containersation -----------
     # ----------------------------------------------
 
+    # TODO: Currently blocking. Use of threading is undesirable due to its 
+    # constraints in what hardware it can utilise. 
+
     client = docker.from_env()
     # bind constant input/output directories to import and export data 
     # between the external context and the container
@@ -226,14 +231,12 @@ def run_computation(ap_description: ActionProviderDescription,
         container = client.containers.run(
             image='computation_image:latest',
             volumes=volumes,
-            command=[ap_request.body["fastText_predictions"], 
-                     ap_request.body["langdetect_predictions"], 
-                     ap_request.body["primary_validation"]],
-            detach=True
-        )
-
-        # command=[ap_request.body["input_data"]],
+           command=[ap_request.body["fastText_predictions"], 
+                    ap_request.body["langdetect_predictions"], 
+                    ap_request.body["primary_validation"]],
+                    detach=True)
         # wait for the container to finish
+        print(container)
         container.wait()
 
     except Exception as e:
@@ -245,6 +248,13 @@ def run_computation(ap_description: ActionProviderDescription,
             container.stop()
         # Remove the container
         container.remove()
+
+        # Update and re-regester action
+        action_status = action_database.get(ap_status.action_id)
+        action_status.completion_time=datetime.now(timezone.utc).isoformat()
+        action_status.status=ActionStatusValue.SUCCEEDED
+        action_status.display_status=ActionStatusValue.SUCCEEDED
+        action_database[ap_status.action_id] = action_status
 
     
 
@@ -301,9 +311,8 @@ def my_action_release(action_id: str, auth: AuthState) -> ActionCallbackReturn:
         raise ActionConflict("Cannot release incomplete Action")
 
     action_status.display_status = f"Released by {auth.effective_identity}"
-    # TODO currently dont understand the release mechanic and this might break
-    request_database.pop(action_id)
-    action_database.pop(action_id)
+    # TODO action is not actually release (e.g. removed form backend database)
+
     return action_status
 
 
@@ -329,8 +338,3 @@ def my_action_log(action_id: str, auth: AuthState) -> ActionLogReturn:
             },
         },
     )
-
-
-# Testing
-# if __name__ == "__main__":
-#     run_computation()
